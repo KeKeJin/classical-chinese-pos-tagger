@@ -8,7 +8,6 @@ from matplotlib import pyplot as plt
 from HMMtagger import HMMTagger
 import argparse
 import pickle
-import read_tags
 from get_data import *
 import time
 
@@ -43,20 +42,18 @@ def main(args):
         ax.scatter(xs, ys, c='b', s=10)
         plt.savefig(args.output)
     else:
-        for i in range(len(args.hmm)):
-            tokens, tagged_tokens = get_tagged_tokens(args.dir[i])
-            for words, tags in tagged_tokens: 
-                # doc = nlp.tokenizer(''.join(words))
-                doc=nlp.tokenizer.tokens_from_list(list(words))
-                taggers[i](doc)
+        tokens, tagged_tokens = get_tagged_tokens(args.dir)
+        for words, tags in tagged_tokens: 
+            doc=nlp.tokenizer.tokens_from_list(list(words))
+            taggers[0](doc)
 
-                right = sum([spacy_token.tag_ == ref_tag 
-                            for spacy_token, ref_tag in zip(doc, tags)])
-                size = len(doc)
-                total_right += right
-                total_size += size
-            print("Accuracy: {:.2%}".format(total_right/total_size))
-            print("--- %s seconds ---" % (time.time() - start))
+            right = sum([spacy_token.tag_ == ref_tag 
+                        for spacy_token, ref_tag in zip(doc, tags)])
+            size = len(doc)
+            total_right += right
+            total_size += size
+        print("Accuracy: {:.2%}".format(total_right/total_size))
+        print("--- %s seconds ---" % (time.time() - start))
 
 if __name__ == "__main__": 
     parser = argparse.ArgumentParser(description='POS Tag, then evaluate')

@@ -7,6 +7,7 @@ import os
 from collections import defaultdict, Counter
 import argparse
 import pickle
+# from get_data import *
 from get_data import *
 import time
 
@@ -31,7 +32,10 @@ class HMMTagger():
 
     """Given a tag, return the index of the tag in tags"""
     def tag_to_index(self, t):
-        return self.tags.index(t)
+        try:
+            return self.tags.index(t)
+        except:
+            return len(self.tags)-1
 
     """Get the costs of all the possible starting tags"""
     def get_start_costs(self):
@@ -118,33 +122,33 @@ class HMMTagger():
         # Build DP table, which should be |sent| x |tags|
         cost_table = zeros((len(tokens), len(self.tags)), float32)
         bt_table   = zeros((len(tokens), len(self.tags)), int)
+        if len(tokens) != 0:
+            for token_i, token in enumerate(tokens):        # for a token and its index in tokens
+                token_costs = self.get_token_costs(token)   # token_costs = all possible word-tag pair
+                                                            #   for the current token
+                if token_i == 0:                            # if it is the first token in input token list
+                    prev_costs = self.get_start_costs() + token_costs
+                                                            # initial cost is lists of all possible
+                                                            #   starting tags plus the costs for the current words
+                    bt_table[token_i, :] = -1               # set all entries in the first row of bt_table to -1
+                else:                                       # if the token is not the starting token
+                    costs = self.tag_tag_probs.copy()       # make a copy of tag_tag_probs
+                    costs = (costs.transpose() + prev_costs).transpose() # same to every column
+                                                            # for every previous cost in each tag, 
+                                                            #   add the previous cost
+                    costs += token_costs                    # for previous cost in each tag, 
+                                                            #   add the token cost to each entry in the column
+                    
+                    prev_costs = costs.max(axis=0)          # for each tag, take the highest cost across all tag-tag pairs
+                    bt_table[token_i,:] = costs.argmax(axis=0) # update bt_table, so that every entry in the row holds
+                                                            #       the indexes of the highest-cost tag-tag pairs
+                cost_table[token_i, :] = prev_costs         # update the cost_table 
 
-        for token_i, token in enumerate(tokens):        # for a token and its index in tokens
-            token_costs = self.get_token_costs(token)   # token_costs = all possible word-tag pair
-                                                        #   for the current token
-            if token_i == 0:                            # if it is the first token in input token list
-                prev_costs = self.get_start_costs() + token_costs
-                                                        # initial cost is lists of all possible
-                                                        #   starting tags plus the costs for the current words
-                bt_table[token_i, :] = -1               # set all entries in the first row of bt_table to -1
-            else:                                       # if the token is not the starting token
-                costs = self.tag_tag_probs.copy()       # make a copy of tag_tag_probs
-                costs = (costs.transpose() + prev_costs).transpose() # same to every column
-                                                        # for every previous cost in each tag, 
-                                                        #   add the previous cost
-                costs += token_costs                    # for previous cost in each tag, 
-                                                        #   add the token cost to each entry in the column
-                
-                prev_costs = costs.max(axis=0)          # for each tag, take the highest cost across all tag-tag pairs
-                bt_table[token_i,:] = costs.argmax(axis=0) # update bt_table, so that every entry in the row holds
-                                                        #       the indexes of the highest-cost tag-tag pairs
-            cost_table[token_i, :] = prev_costs         # update the cost_table 
+            # Find the highest-probability tag for last word
+            best_last_tag = argmax(prev_costs)
 
-        # Find the highest-probability tag for last word
-        best_last_tag = argmax(prev_costs)
-
-        # Trace back through the bt_table
-        self.backtrace(bt_table, tokens, best_last_tag)
+            # Trace back through the bt_table
+            self.backtrace(bt_table, tokens, best_last_tag)
 
     # Given a backtrack table, and a list of tokens, and the best last tage
     # adding attribute tag_ to every element in the list of tokens
@@ -159,11 +163,10 @@ def main(args):
     start = time.time()
     nlp = spacy.load("en_core_web_sm")
     tagger = HMMTagger(nlp, alpha=args.alpha, vocabsize = args.vocabsize)
-    print(args.dir)
-    for i, train_dir in enumerate(args.dir):
-        tagger.train(train_dir)
-        pickle.dump(tagger, args.output[i])
-        print("--- %s seconds ---" % (time.time() - start))
+    # for i, train_dir in enumerate(args.dir):
+    tagger.train(args.dir)
+    pickle.dump(tagger, args.output[0])
+    print("--- %s seconds ---" % (time.time() - start))
 
 
 if __name__ == "__main__": 
